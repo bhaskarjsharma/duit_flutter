@@ -1,9 +1,7 @@
-import 'dart:developer';
-import 'dart:js_util';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:duit_flutter/admin.dart';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 
 import 'account.dart';
 import 'main.dart';
@@ -17,14 +15,14 @@ class Home extends StatefulWidget {
 class HomeState extends State<Home> {
   var isLoading = true;
   var currentUser = '';
-  int _selectedIndex = 0;
+
   List<Product> products = [];
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
-    currentUser = firebaseAuth.currentUser?.uid as String;
+    //currentUser = firebaseAuth.currentUser?.uid as String;
 
     db.collection('Product').get().then((QuerySnapshot querySnapshot) {
       querySnapshot.docs.forEach((doc) {
@@ -59,20 +57,10 @@ class HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('DUIT'), actions: <Widget>[
-        IconButton(
-          icon: const Icon(Icons.logout),
-          tooltip: 'Logout',
-          onPressed: () {
-            LogoutUser();
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => Login()),
-            );
-          },
-        ),
-      ]),
-      drawer: Drawer(
+      appBar: AppBar(
+        title: const Text('DUIT'),
+      ),
+      endDrawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: <Widget>[
@@ -88,27 +76,67 @@ class HomeState extends State<Home> {
                 ),
               ),
             ),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => Admin()),
-                );
-              },
-              child: ListTile(
-                leading: Icon(Icons.settings),
-                title: Text('Admin'),
-                trailing: Icon(Icons.account_circle),
-              ),
-            ),
-            ListTile(
-              leading: Icon(Icons.account_circle),
-              title: Text('Profile'),
-            ),
-            ListTile(
-              leading: Icon(Icons.settings),
-              title: Text('Settings'),
-            ),
+            isLoggedIn
+                ? Column(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => Admin()),
+                          );
+                        },
+                        child: ListTile(
+                          leading: Icon(Icons.settings),
+                          title: Text('Admin'),
+                          trailing: Icon(Icons.account_circle),
+                        ),
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.account_circle),
+                        title: Text('Profile'),
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.settings),
+                        title: Text('Settings'),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout),
+                        tooltip: 'Logout',
+                        onPressed: () {
+                          LogoutUser();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => Login()),
+                          );
+                        },
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => Login()),
+                            );
+                          },
+                          child: Text('Login')),
+                      SizedBox(
+                        height: 30,
+                      ),
+                      ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => Register()),
+                            );
+                          },
+                          child: Text('New User? Register'))
+                    ],
+                  )
           ],
         ),
       ),
@@ -120,22 +148,27 @@ class HomeState extends State<Home> {
             backgroundColor: Colors.red,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.business),
-            label: 'Business',
+            icon: Icon(Icons.list),
+            label: 'Category',
+            backgroundColor: Colors.red,
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu),
+            label: 'Orders',
             backgroundColor: Colors.green,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.school),
-            label: 'School',
+            icon: Icon(Icons.favorite),
+            label: 'Wishlist',
             backgroundColor: Colors.purple,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
+            icon: Icon(Icons.shopping_cart),
+            label: 'Cart',
             backgroundColor: Colors.pink,
           ),
         ],
-        currentIndex: _selectedIndex,
+        currentIndex: selectedIndex,
         selectedItemColor: Colors.amber[800],
         onTap: _onItemTapped,
       ),
@@ -186,31 +219,65 @@ class HomeState extends State<Home> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               GestureDetector(
-                onTap: () {
-                  final cartItem = <String, dynamic>{
-                    "Code": product.Code,
-                    "Name": product.Name,
-                    "Price": product.Price,
-                    "Quantity": 1,
-                  };
+                onTap: () async {
+                  if (isLoggedIn) {
+                    // logged in user. Add item to cart and create entry in database
+                    final cartItem = <String, dynamic>{
+                      "ProductCode": product.Code,
+                      "ProductName": product.Name,
+                      "ProductPrice": product.Price,
+                      "ProductQuantity": 1,
+                      "ThumbnailURL": product.ThumbnailURL,
+                    };
 
-                  db.collection("Cart").add(cartItem).then(
-                      (DocumentReference doc) =>
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Product added to cart'),
-                              action: SnackBarAction(
-                                label: 'View Cart',
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) => Cart()),
-                                  );
-                                },
+                    db.collection("Cart").add(cartItem).then(
+                        (DocumentReference doc) =>
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Product added to cart'),
+                                action: SnackBarAction(
+                                  label: 'View Cart',
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) => ProductCart()),
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
-                          ));
+                            ));
+                  } else {
+                    // add item to cart and save entry in local database
+
+                    var cartBox = await Hive.openBox<Cart>('cart_box');
+
+                    final cartItem = Cart(
+                      ProductCode: product.Code,
+                      ProductName: product.Name,
+                      ProductPrice: product.Price,
+                      ProductQuantity: 1,
+                      ThumbnailURL: product.ThumbnailURL,
+                    );
+
+                    cartBox.add(cartItem);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Product added to cart'),
+                        action: SnackBarAction(
+                          label: 'View Cart',
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => ProductCart()),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  }
                 },
                 child: Icon(Icons.shopping_cart),
               ),
@@ -227,8 +294,19 @@ class HomeState extends State<Home> {
 
   void _onItemTapped(int index) {
     setState(() {
-      _selectedIndex = index;
+      selectedIndex = index;
     });
+    if (selectedIndex == 0) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Home()),
+      );
+    } else if (selectedIndex == 4) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => ProductCart()),
+      );
+    }
   }
 }
 
@@ -237,27 +315,292 @@ LogoutUser() async {
   await firebaseAuth.signOut();
 }
 
-class Cart extends StatefulWidget {
+class ProductCart extends StatefulWidget {
   @override
-  State<Cart> createState() => CartState();
+  State<ProductCart> createState() => CartState();
 }
 
-class CartState extends State<Cart> {
-  var isLoading = false;
+class CartState extends State<ProductCart> {
+  var isLoading = true;
+  List<Cart> cartItems = [];
+  int totalPrice = 0;
+  int totalQuantity = 0;
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
+    GetCartData();
+  }
+
+  GetCartData() async {
+    if (isLoggedIn) {
+      // user is logged in. Get cart items from firebase database
+
+      db.collection('Cart').get().then((QuerySnapshot querySnapshot) {
+        querySnapshot.docs.forEach((doc) {
+          final item = Cart(
+            ProductCode: doc["ProductCode"],
+            ProductName: doc["ProductName"],
+            ProductPrice: int.parse(doc["ProductPrice"]),
+            ProductQuantity: int.parse(doc["ProductQuantity"]),
+            ThumbnailURL: doc["ThumbnailURL"],
+          );
+
+          cartItems.add(item);
+        });
+
+        setState(() {
+          isLoading = false;
+          totalPrice =
+              cartItems.fold(0, (sum, item) => sum + item.ProductPrice);
+          totalQuantity =
+              cartItems.fold(0, (sum, item) => sum + item.ProductQuantity);
+        });
+      });
+    } else {
+      // user not logged in . Get cart items from hive local database
+      final cartItemBox = await Hive.openBox<Cart>('cart_box');
+      if (cartItemBox.values.isEmpty) {
+        setState(() {
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          cartItems = cartItemBox.values.toList();
+          isLoading = false;
+          totalPrice =
+              cartItems.fold(0, (sum, item) => sum + item.ProductPrice);
+          totalQuantity =
+              cartItems.fold(0, (sum, item) => sum + item.ProductQuantity);
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Cart'), actions: <Widget>[]),
-      body: Center(
-        child: Text('Cart'),
+      appBar: AppBar(
+        title: const Text('Cart'),
       ),
+      endDrawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: <Widget>[
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.blue,
+              ),
+              child: Text(
+                'Drawer Header',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                ),
+              ),
+            ),
+            isLoggedIn
+                ? Column(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => Admin()),
+                          );
+                        },
+                        child: ListTile(
+                          leading: Icon(Icons.settings),
+                          title: Text('Admin'),
+                          trailing: Icon(Icons.account_circle),
+                        ),
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.account_circle),
+                        title: Text('Profile'),
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.settings),
+                        title: Text('Settings'),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout),
+                        tooltip: 'Logout',
+                        onPressed: () {
+                          LogoutUser();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => Login()),
+                          );
+                        },
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => Login()),
+                            );
+                          },
+                          child: Text('Login')),
+                      SizedBox(
+                        height: 30,
+                      ),
+                      ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => Register()),
+                            );
+                          },
+                          child: Text('New User? Register'))
+                    ],
+                  )
+          ],
+        ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+            backgroundColor: Colors.red,
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.list),
+            label: 'Category',
+            backgroundColor: Colors.red,
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu),
+            label: 'Orders',
+            backgroundColor: Colors.green,
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.favorite),
+            label: 'Wishlist',
+            backgroundColor: Colors.purple,
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.shopping_cart),
+            label: 'Cart',
+            backgroundColor: Colors.pink,
+          ),
+        ],
+        currentIndex: selectedIndex,
+        selectedItemColor: Colors.amber[800],
+        onTap: _onItemTapped,
+      ),
+      body: !isLoading
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                    child: ListView.separated(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: cartItems.length,
+                  itemBuilder: (BuildContext context, int index) {
+                    return Container(
+                        height: 80,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              width: 50,
+                              child: Image.network(
+                                  '${cartItems[index].ThumbnailURL}'),
+                            ),
+                            Text('${cartItems[index].ProductName}'),
+                            Text('${cartItems[index].ProductCode}'),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text('Price: ${cartItems[index].ProductPrice}'),
+                                Text(
+                                    'Quantity: ${cartItems[index].ProductQuantity}'),
+                                IconButton(
+                                  onPressed: () {
+                                    DeleteFromCart(cartItems[index], index);
+                                  },
+                                  icon: Icon(Icons.delete),
+                                )
+                              ],
+                            ),
+                          ],
+                        ));
+                  },
+                  separatorBuilder: (BuildContext context, int index) =>
+                      const Divider(),
+                )),
+                Divider(),
+                ListTile(
+                  title: Text('Total'),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('Price: ${totalPrice}'),
+                      Text('Quantity: ${totalQuantity}'),
+                    ],
+                  ),
+                ),
+                ElevatedButton(onPressed: () {}, child: Text('Checkout')),
+                SizedBox(
+                  height: 10,
+                )
+              ],
+            )
+          : CircularProgressIndicator(),
     );
+  }
+
+  void DeleteFromCart(Cart cartItem, int index) async {
+    if (isLoggedIn) {
+      // user is logged in. Remove item from firebase database
+
+      db
+          .collection('Cart')
+          .where('ProductCode', cartItem.ProductCode)
+          .delete()
+          .then({});
+    } else {
+      // user not logged in . Remove item from  hive local database
+      final cartItemBox = await Hive.openBox<Cart>('cart_box');
+      if (!cartItemBox.values.isEmpty) {
+        await cartItemBox.deleteAt(index);
+        setState(() {
+          cartItems.removeWhere(
+            (element) => element.ProductCode == cartItem.ProductCode,
+          );
+          totalPrice =
+              cartItems.fold(0, (sum, item) => sum + item.ProductPrice);
+          totalQuantity =
+              cartItems.fold(0, (sum, item) => sum + item.ProductQuantity);
+        });
+      }
+    }
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      selectedIndex = index;
+    });
+    if (selectedIndex == 0) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Home()),
+      );
+    } else if (selectedIndex == 4) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => ProductCart()),
+      );
+    }
   }
 }

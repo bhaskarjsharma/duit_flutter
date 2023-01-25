@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive/hive.dart';
+part 'models.g.dart';
 
 class Product {
   final String Code;
@@ -51,4 +53,34 @@ class Product {
       if (ThumbnailURL != null) "ThumbnailURL": ThumbnailURL,
     };
   } */
+}
+
+@HiveType(typeId: 0)
+class Cart extends HiveObject {
+  // add package hive_generator and build_runner
+  // add part 'models.g.dart'; on top import
+  // run command "flutter packages pub run build_runner build" to create the adpter
+
+  @HiveField(0)
+  String ProductCode;
+
+  @HiveField(1)
+  String ProductName;
+
+  @HiveField(2)
+  int ProductPrice;
+
+  @HiveField(3)
+  int ProductQuantity;
+
+  @HiveField(4)
+  String ThumbnailURL;
+
+  Cart({
+    required this.ProductCode,
+    required this.ProductName,
+    required this.ProductPrice,
+    required this.ProductQuantity,
+    required this.ThumbnailURL,
+  });
 }
